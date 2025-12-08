@@ -28,15 +28,19 @@ async function run() {
     const petCollection = db.collection("pets");
     const ordersCollection = db.collection("orders");
 
-    // ADD NEW PET
+    // ADD NEW PET (FIXED)
     app.post("/pets", async (req, res) => {
       try {
         const newPet = req.body;
-        if (!newPet._id || !newPet.name || !newPet.category) {
-          return res
-            .status(400)
-            .send({ error: "Missing required fields: _id, name, category" });
+
+        if (!newPet.name || !newPet.category) {
+          return res.status(400).send({
+            error: "Missing required fields: name, category",
+          });
         }
+
+        newPet.date = new Date(); // For recent sorting
+
         const result = await petCollection.insertOne(newPet);
         res.send(result);
       } catch (error) {
@@ -44,11 +48,12 @@ async function run() {
       }
     });
 
-    // GET ALL PETS (filter by email & category)
+    // GET ALL PETS
     app.get("/pets", async (req, res) => {
       try {
         const { email, category } = req.query;
         const query = {};
+
         if (email) query.owner_email = email;
         if (category) query.category = category;
 
@@ -59,7 +64,7 @@ async function run() {
       }
     });
 
-    // GET RECENT 6 PETS
+    // GET RECENT 6 PETS (FIXED)
     app.get("/pets/recent", async (req, res) => {
       try {
         const recentPets = await petCollection
@@ -73,38 +78,45 @@ async function run() {
       }
     });
 
-    // GET SINGLE PET BY ID
+    // GET SINGLE PET BY ID (FIXED)
     app.get("/pets/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const result = await petCollection.findOne({ _id: id });
+        const result = await petCollection.findOne({ _id: new ObjectId(id) });
+
         if (!result) return res.status(404).send({ error: "Pet not found" });
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
-
-    // UPDATE PET BY ID
+    // UPDATE PET (FIXED)
     app.patch("/pets/:id", async (req, res) => {
       try {
         const id = req.params.id;
         const updatePet = req.body;
+
         const result = await petCollection.updateOne(
-          { _id: id },
+          { _id: new ObjectId(id) },
           { $set: updatePet }
         );
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
 
-    // DELETE PET BY ID
+    // DELETE PET (FIXED)
     app.delete("/pets/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const result = await petCollection.deleteOne({ _id: id });
+
+        const result = await petCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
@@ -112,33 +124,34 @@ async function run() {
     });
 
     // ORDERS ROUTES
-    // Create order
+
+    // CREATE ORDER (FIXED)
     app.post("/orders", async (req, res) => {
       try {
         const newOrder = req.body;
-        if (!newOrder._id || !newOrder.productId || !newOrder.buyerName) {
-          return res
-            .status(400)
-            .send({ error: "_id, productId, buyerName are required" });
+
+        if (!newOrder.productId || !newOrder.buyerName) {
+          return res.status(400).send({
+            error: "productId & buyerName are required",
+          });
         }
 
-        // Validate productId exists in pets collection
+        // check product exists
         const product = await petCollection.findOne({
-          _id: newOrder.productId,
+          _id: new ObjectId(newOrder.productId),
         });
+
         if (!product) {
           return res.status(400).send({ error: "Invalid productId" });
         }
 
-        //new order
         newOrder.productName = product.name;
-        if (!newOrder.quantity) newOrder.quantity = product.Price === 0 ? 1 : 1;
-        if (!newOrder.price) newOrder.price = product.Price;
-        if (!newOrder.address) newOrder.address = "";
-        if (!newOrder.phone) newOrder.phone = "";
-        if (!newOrder.date)
-          newOrder.date = new Date().toISOString().split("T")[0];
-        if (!newOrder.additionalNotes) newOrder.additionalNotes = "";
+        newOrder.quantity = newOrder.quantity || 1;
+        newOrder.price = newOrder.price || product.price || 0;
+        newOrder.address = newOrder.address || "";
+        newOrder.phone = newOrder.phone || "";
+        newOrder.date = new Date();
+        newOrder.additionalNotes = newOrder.additionalNotes || "";
 
         const result = await ordersCollection.insertOne(newOrder);
         res.send(result);
@@ -147,11 +160,12 @@ async function run() {
       }
     });
 
-    // Get all orders
+    // GET ORDERS
     app.get("/orders", async (req, res) => {
       try {
         const email = req.query.email;
         const query = {};
+
         if (email) query.email = email;
 
         const result = await ordersCollection.find(query).toArray();
@@ -161,38 +175,49 @@ async function run() {
       }
     });
 
-    // Get single order by ID
+    // GET SINGLE ORDER
     app.get("/orders/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const result = await ordersCollection.findOne({ _id: id });
-        if (!result) return res.status(404).send({ error: "Order not found" });
+
+        const result = await ordersCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!result)
+          return res.status(404).send({ error: "Order not found" });
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
 
-    // Update order by ID
+    // UPDATE ORDER
     app.patch("/orders/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const updateOrder = req.body;
+
         const result = await ordersCollection.updateOne(
-          { _id: id },
-          { $set: updateOrder }
+          { _id: new ObjectId(id) },
+          { $set: req.body }
         );
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
 
-    // Delete order by ID
+    // DELETE ORDER
     app.delete("/orders/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const result = await ordersCollection.deleteOne({ _id: id });
+
+        const result = await ordersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: error.message });
