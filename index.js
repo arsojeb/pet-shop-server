@@ -28,7 +28,7 @@ async function run() {
     const petCollection = db.collection("pets");
     const ordersCollection = db.collection("orders");
 
-    // ADD NEW PET (FIXED)
+    // ADD NEW PET 
     app.post("/pets", async (req, res) => {
       try {
         const newPet = req.body;
@@ -39,7 +39,7 @@ async function run() {
           });
         }
 
-        newPet.date = new Date(); // For recent sorting
+        newPet.date = new Date();
 
         const result = await petCollection.insertOne(newPet);
         res.send(result);
@@ -64,7 +64,7 @@ async function run() {
       }
     });
 
-    // GET RECENT 6 PETS (FIXED)
+    // GET RECENT 6 PETS 
     app.get("/pets/recent", async (req, res) => {
       try {
         const recentPets = await petCollection
@@ -78,7 +78,7 @@ async function run() {
       }
     });
 
-    // GET SINGLE PET BY ID (FIXED)
+    // GET SINGLE PET BY ID 
     app.get("/pets/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -91,7 +91,7 @@ async function run() {
         res.status(500).send({ error: error.message });
       }
     });
-    // UPDATE PET (FIXED)
+    // UPDATE PET 
     app.patch("/pets/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -108,7 +108,7 @@ async function run() {
       }
     });
 
-    // DELETE PET (FIXED)
+    // DELETE PET 
     app.delete("/pets/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -125,7 +125,7 @@ async function run() {
 
     // ORDERS ROUTES
 
-    // CREATE ORDER (FIXED)
+    // CREATE ORDER 
     app.post("/orders", async (req, res) => {
       try {
         const newOrder = req.body;
@@ -227,7 +227,6 @@ async function run() {
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB successfully!");
   } finally {
-    // Keep connection open
   }
 }
 
