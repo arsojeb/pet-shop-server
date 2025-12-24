@@ -1,244 +1,243 @@
 const express = require("express");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
-const { MongoClient, ObjectId, ServerApiVersion } = require("mongodb");
-
 const app = express();
+const port = process.env.PORT || 3000;
 
-/* =====================
-   MIDDLEWARE
-===================== */
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-/* =====================
-   MONGODB CONNECTION
-===================== */
-const uri = process.env.MONGODB_URI;
+// MongoDB credentials
+const uri =
+  "mongodb+srv://pet-shop:LbRSBjiaXGuyu0x2@wizard.fyfkszn.mongodb.net/?appName=Wizard";
 
-let cachedClient = null;
-let cachedDb = null;
+// MongoDB client
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
 
-async function connectDB() {
-  if (cachedDb) return cachedDb;
+async function run() {
+  try {
+    await client.connect();
+    const db = client.db("pet-shop");
+    const petCollection = db.collection("pets");
+    const ordersCollection = db.collection("orders");
 
-  const client = new MongoClient(uri, {
-    serverApi: {
-      version: ServerApiVersion.v1,
-      strict: true,
-      deprecationErrors: true,
-    },
-  });
+    // ADD NEW PET 
+    app.post("/pets", async (req, res) => {
+      try {
+        const newPet = req.body;
 
-  await client.connect();
-  const db = client.db("pet-shop");
+        if (!newPet.name || !newPet.category) {
+          return res.status(400).send({
+            error: "Missing required fields: name, category",
+          });
+        }
 
-  cachedClient = client;
-  cachedDb = db;
+        newPet.date = new Date();
 
-  console.log("✅ MongoDB Connected");
-  return db;
+        const result = await petCollection.insertOne(newPet);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // GET ALL PETS
+    app.get("/pets", async (req, res) => {
+      try {
+        const { email, category } = req.query;
+        const query = {};
+
+        if (email) query.owner_email = email;
+        if (category) query.category = category;
+
+        const result = await petCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // GET RECENT 6 PETS 
+    app.get("/pets/recent", async (req, res) => {
+      try {
+        const recentPets = await petCollection
+          .find()
+          .sort({ date: -1 })
+          .limit(6)
+          .toArray();
+        res.send(recentPets);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // GET SINGLE PET BY ID 
+    app.get("/pets/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await petCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!result) return res.status(404).send({ error: "Pet not found" });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+    // UPDATE PET 
+    app.patch("/pets/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updatePet = req.body;
+
+        const result = await petCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatePet }
+        );
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // DELETE PET 
+    app.delete("/pets/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await petCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // ORDERS ROUTES
+
+    // CREATE ORDER 
+    app.post("/orders", async (req, res) => {
+      try {
+        const newOrder = req.body;
+
+        if (!newOrder.productId || !newOrder.buyerName) {
+          return res.status(400).send({
+            error: "productId & buyerName are required",
+          });
+        }
+
+        // check product exists
+        const product = await petCollection.findOne({
+          _id: new ObjectId(newOrder.productId),
+        });
+
+        if (!product) {
+          return res.status(400).send({ error: "Invalid productId" });
+        }
+
+        newOrder.productName = product.name;
+        newOrder.quantity = newOrder.quantity || 1;
+        newOrder.price = newOrder.price || product.price || 0;
+        newOrder.address = newOrder.address || "";
+        newOrder.phone = newOrder.phone || "";
+        newOrder.date = new Date();
+        newOrder.additionalNotes = newOrder.additionalNotes || "";
+
+        const result = await ordersCollection.insertOne(newOrder);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // GET ORDERS
+    app.get("/orders", async (req, res) => {
+      try {
+        const email = req.query.email;
+        const query = {};
+
+        if (email) query.email = email;
+
+        const result = await ordersCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // GET SINGLE ORDER
+    app.get("/orders/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await ordersCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!result)
+          return res.status(404).send({ error: "Order not found" });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // UPDATE ORDER
+    app.patch("/orders/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await ordersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: req.body }
+        );
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // DELETE ORDER
+    app.delete("/orders/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await ordersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    await client.db("admin").command({ ping: 1 });
+    console.log("Connected to MongoDB successfully!");
+  } finally {
+  }
 }
 
-/* =====================
-   ROOT
-===================== */
+run().catch(console.dir);
+
+// Root route
 app.get("/", (req, res) => {
-  res.send("🐾 Pet Shop API is running on Vercel");
+  res.send("Pet-shop server is live");
 });
 
-/* =====================
-   PET ROUTES
-===================== */
-
-// ADD PET
-app.post("/pets", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const pet = req.body;
-
-    if (!pet.name || !pet.category) {
-      return res.status(400).send({ error: "name & category required" });
-    }
-
-    pet.date = new Date();
-    const result = await db.collection("pets").insertOne(pet);
-    res.send(result);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+// Start server
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
-
-// GET ALL PETS
-app.get("/pets", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const { email, category } = req.query;
-
-    const query = {};
-    if (email) query.owner_email = email;
-    if (category) query.category = category;
-
-    const pets = await db.collection("pets").find(query).toArray();
-    res.send(pets);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// GET RECENT 6 PETS
-app.get("/pets/recent", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const pets = await db
-      .collection("pets")
-      .find()
-      .sort({ date: -1 })
-      .limit(6)
-      .toArray();
-
-    res.send(pets);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// GET SINGLE PET
-app.get("/pets/:id", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const pet = await db
-      .collection("pets")
-      .findOne({ _id: new ObjectId(req.params.id) });
-
-    if (!pet) return res.status(404).send({ error: "Pet not found" });
-    res.send(pet);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// UPDATE PET
-app.patch("/pets/:id", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const result = await db.collection("pets").updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: req.body }
-    );
-    res.send(result);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// DELETE PET
-app.delete("/pets/:id", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const result = await db.collection("pets").deleteOne({
-      _id: new ObjectId(req.params.id),
-    });
-    res.send(result);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-/* =====================
-   ORDER ROUTES
-===================== */
-
-// CREATE ORDER
-app.post("/orders", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const order = req.body;
-
-    if (!order.productId || !order.buyerName) {
-      return res
-        .status(400)
-        .send({ error: "productId & buyerName required" });
-    }
-
-    const product = await db.collection("pets").findOne({
-      _id: new ObjectId(order.productId),
-    });
-
-    if (!product) {
-      return res.status(400).send({ error: "Invalid productId" });
-    }
-
-    order.productName = product.name;
-    order.price = product.price || 0;
-    order.quantity = order.quantity || 1;
-    order.date = new Date();
-
-    const result = await db.collection("orders").insertOne(order);
-    res.send(result);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// GET ORDERS
-app.get("/orders", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const { email } = req.query;
-
-    const query = {};
-    if (email) query.email = email;
-
-    const orders = await db.collection("orders").find(query).toArray();
-    res.send(orders);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// GET SINGLE ORDER
-app.get("/orders/:id", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const order = await db
-      .collection("orders")
-      .findOne({ _id: new ObjectId(req.params.id) });
-
-    if (!order) return res.status(404).send({ error: "Order not found" });
-    res.send(order);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// UPDATE ORDER
-app.patch("/orders/:id", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const result = await db.collection("orders").updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: req.body }
-    );
-    res.send(result);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// DELETE ORDER
-app.delete("/orders/:id", async (req, res) => {
-  try {
-    const db = await connectDB();
-    const result = await db.collection("orders").deleteOne({
-      _id: new ObjectId(req.params.id),
-    });
-    res.send(result);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-/* =====================
-   EXPORT FOR VERCEL
-===================== */
-module.exports = app;
