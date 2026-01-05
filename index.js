@@ -14,7 +14,7 @@ app.use(express.json());
 const uri =
   "mongodb+srv://pet-shop:LbRSBjiaXGuyu0x2@wizard.fyfkszn.mongodb.net/?appName=Wizard";
 
-// MongoDB client
+// MongoDB client - side
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -93,7 +93,7 @@ async function run() {
         res.status(500).send({ error: error.message });
       }
     });
-    // UPDATE PET 
+    // UPDATE 
     app.patch("/pets/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -177,7 +177,7 @@ async function run() {
       }
     });
 
-    // GET SINGLE ORDER
+    // GET SINGLE 
     app.get("/orders/:id", async (req, res) => {
       try {
         const id = req.params.id;
